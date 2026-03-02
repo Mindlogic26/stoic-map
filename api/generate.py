@@ -8,6 +8,13 @@ import io
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        # --- ADD THESE 3 LINES FOR SECURITY PERMISSION ---
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*') # Allows Hostinger to talk to Vercel
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        # ------------------------------------------------
+                
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
         data = json.loads(post_data)
