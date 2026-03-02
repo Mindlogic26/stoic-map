@@ -7,14 +7,16 @@ import json
 import io
 
 class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        # --- ADD THESE 3 LINES FOR SECURITY PERMISSION ---
+    # --- FIX 1: ADD PRE-FLIGHT HANDSHAKE ---
+    def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*') # Allows Hostinger to talk to Vercel
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        # ------------------------------------------------
-                
+        self.end_headers()
+
+    def do_POST(self):
+        # 1. READ DATA
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
         data = json.loads(post_data)
@@ -22,7 +24,7 @@ class handler(BaseHTTPRequestHandler):
         user_name = data.get('name', 'JOHN DOE').upper()
         dob_str = data.get('dob', '1995-01-01')
         
-        # 1. Calculation Logic
+        # 2. CALCULATION LOGIC
         birth_date = datetime.strptime(dob_str, '%Y-%m-%d')
         now = datetime.now()
         years_lived = now.year - birth_date.year - ((now.month, now.day) < (birth_date.month, birth_date.day))
@@ -30,26 +32,24 @@ class handler(BaseHTTPRequestHandler):
         weeks_this_year = (now - last_birthday).days // 7
         current_week_index = (years_lived * 52) + weeks_this_year
 
-        # 2. PDF Setup
+        # 3. PDF SETUP
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A3)
         width, height = A3
         
-        # 3. Headers
+        # 4. DRAWING HEADERS
         c.setFont("Helvetica-Bold", 40)
         c.drawString(25*mm, height - 40*mm, "MEMENTO MORI")
         c.setFont("Helvetica", 10)
         c.drawRightString(width - 25*mm, height - 35*mm, user_name)
         c.drawRightString(width - 25*mm, height - 40*mm, "ARCHIVAL MAP | 80 YEAR POTENTIAL")
 
-        # 4. The 80-Year Grid
+        # 5. THE 80-YEAR GRID
         startX, boxSize, padding, midGap, decadeGap = 25*mm, 3.0*mm, 1.0*mm, 8.0*mm, 5.5*mm
         currentY = height - 70*mm
 
         for y in range(1, 81):
             if y > 1 and (y-1) % 10 == 0: currentY -= decadeGap
-            
-            # Year Labels
             if y % 10 == 0 or y == 1:
                 c.setFont("Helvetica-Bold", 8)
                 c.drawRightString(startX - 5*mm, currentY + 1*mm, str(y))
@@ -57,8 +57,8 @@ class handler(BaseHTTPRequestHandler):
             for w in range(1, 53):
                 xOff = (w-1) * (boxSize + padding)
                 if w > 26: xOff += midGap
-                
                 weekIdx = ((y-1) * 52) + (w-1)
+                
                 if weekIdx < current_week_index:
                     c.setFillColorRGB(0,0,0)
                     c.rect(startX + xOff, currentY, boxSize, boxSize, fill=1)
@@ -68,10 +68,9 @@ class handler(BaseHTTPRequestHandler):
                 else:
                     c.setStrokeColorRGB(0,0,0)
                     c.rect(startX + xOff, currentY, boxSize, boxSize, fill=0)
-            
             currentY -= (boxSize + padding)
 
-        # 5. Footer Quotes
+        # 6. FOOTER QUOTES
         c.setFillColorRGB(0,0,0)
         c.setFont("Helvetica-Bold", 9)
         c.drawString(25*mm, 30*mm, '"It is not that we have a short time to live, but that we waste a lot of it."')
@@ -82,8 +81,9 @@ class handler(BaseHTTPRequestHandler):
         c.showPage()
         c.save()
 
-        # 6. Response
+        # --- FIX 2 & 3: CORRECT RESPONSE FORMAT ---
         self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*') # Essential for Hostinger
         self.send_header('Content-Type', 'application/pdf')
         self.send_header('Content-Disposition', 'attachment; filename="FORGE_MAP.pdf"')
         self.end_headers()
